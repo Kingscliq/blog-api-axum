@@ -21,6 +21,8 @@ use thiserror::Error;
 use tokio::{net::TcpListener, sync::Mutex};
 use uuid::Uuid;
 
+mod state;
+
 #[derive(Clone, Debug, Serialize)]
 struct Post {
     id: Uuid,
@@ -147,57 +149,6 @@ async fn create_post_handler(
 async fn health_handler() -> Json<String> {
     Json("App sarted running successfully!".to_string())
 }
-
-// async fn create_post(post: Post, author_id: u8) -> Result<&Post, String> {
-//     let new_post = Post {
-//         id: Uuid::new_v4(),
-//         title: post.title,
-//         description: post.description,
-//         content: post.content,
-//         created_at: Local::now(),
-//         updated_at: Local::now(),
-//         author_id,
-//         image_url: String::from("https://placehold.net/400x400.png"),
-//     };
-
-//     self.posts.insert(new_post.id, new_post);
-
-//     self.next_id += 1;
-//     self.posts
-//         .get(&(self.next_id - 1))
-//         .ok_or(format!("unable to get newly created post"))
-// }
-
-// async fn create_post(state: State<BlogPosts>, Json<PostRequest>) -> Result<Json<PostResponse>, AppError> {
-//     let new_post = Post {
-//         id: Uuid::new_v4(),
-//         title: post.title,
-//         description: post.description,
-//         content: post.content,
-//         created_at: Local::now(),
-//         updated_at: Local::now(),
-//         author_id,
-//         image_url: String::from("https://placehold.net/400x400.png"),
-//     };
-
-//     self.posts.insert(new_post.id, new_post);
-
-//     self.next_id += 1;
-//     self.posts
-//         .get(&(self.next_id - 1))
-//         .ok_or(format!("unable to get newly created post"))
-// }
-
-// fn get_all_posts(&self) -> Vec<&Post> {
-//     self.posts.values().collect()
-// }
-// impl BlogPosts {
-//     fn new() -> Self {
-//         Self {
-//             posts: HashMap::new(),
-//         }
-//     }
-// }
 
 fn get_env_vars<T>(key: &str) -> Result<T, AppError>
 where
