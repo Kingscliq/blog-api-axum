@@ -1,19 +1,27 @@
 use axum::{
-    Json,
+    Json, Router,
     body::Body,
     extract::State,
     http::{Response, StatusCode, response},
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
+    serve::Listener,
 };
 use chrono::{DateTime, Local};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    default,
+    net::{Ipv6Addr, SocketAddr},
+    str::FromStr,
+    sync::Arc,
+};
 use thiserror::Error;
-use tokio::sync::Mutex;
+use tokio::{net::TcpListener, sync::Mutex};
 use uuid::Uuid;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize)]
 struct Post {
     id: Uuid,
     title: String,
@@ -24,6 +32,7 @@ struct Post {
     updated_at: DateTime<Local>,
 }
 
+#[derive(Debug, Deserialize)]
 struct CreatePostRequest {
     title: String,
     description: String,
@@ -31,6 +40,7 @@ struct CreatePostRequest {
     content: String,
 }
 
+#[derive(Debug, Deserialize)]
 struct UpdatePostRequest {
     title: Option<String>,
     description: Option<String>,
@@ -38,13 +48,19 @@ struct UpdatePostRequest {
     content: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
 struct PostResponse {}
-
+#[derive(Debug)]
 struct BlogPosts {
     posts: HashMap<Uuid, Post>,
 }
 
 impl BlogPosts {
+    fn new() -> Self {
+        Self {
+            posts: HashMap::new(),
+        }
+    }
     fn create_post(&mut self, post: Post) -> Result<(), AppError> {
         if self.posts.contains_key(&post.id) {
             Err(AppError::BadRequest(format!(
@@ -58,12 +74,20 @@ impl BlogPosts {
         }
     }
 }
-
+#[derive(Clone, Debug)]
 struct AppState {
     post_state: Arc<Mutex<BlogPosts>>,
 }
 
-#[derive(Debug)]
+impl AppState {
+    fn new() -> Self {
+        Self {
+            post_state: Arc::new(Mutex::new(BlogPosts::new())),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 enum AppError {
     BadRequest(String),
     NotFound(String),
@@ -120,6 +144,10 @@ async fn create_post_handler(
     }
 }
 
+async fn health_handler() -> Json<String> {
+    Json("App sarted running successfully!".to_string())
+}
+
 // async fn create_post(post: Post, author_id: u8) -> Result<&Post, String> {
 //     let new_post = Post {
 //         id: Uuid::new_v4(),
@@ -171,19 +199,37 @@ async fn create_post_handler(
 //     }
 // }
 
+fn get_env_vars<T>(key: &str) -> Result<T, AppError>
+where
+    T: FromStr,
+{
+    let vars = std::env::var(key)
+        .map_err(|_| AppError::NotFound(format!("Environment variable {key} not Found")))?;
+
+    Ok(vars
+        .parse::<T>()
+        .map_err(|_| AppError::BadRequest("An error occured while parsing".to_string())))?
+}
+
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
 
+    let app_state = AppState::new();
+    let default_port = 8080;
 
-    let  global_state = AppState {
-        post_state: Arc<Mutex<BlogPosts>>
-    };
+    let app: Router = Router::new()
+        .route("/health", get(health_handler))
+        .route("/posts", post(create_post_handler))
+        .with_state(app_state);
 
+    let port = get_env_vars("PORT").unwrap_or(default_port);
+    let socker_address: SocketAddr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));
 
-    let blog = Post::new()
+    let listener: TcpListener = TcpListener::bind(socker_address).await.unwrap();
 
-
+    println!("Server Started at port {port}");
+    axum::serve(listener, app).await.unwrap();
 
     // // POST /posts - needs all post data
     // struct CreatePostRequest {
