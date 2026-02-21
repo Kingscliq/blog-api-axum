@@ -1,4 +1,4 @@
-use crate::{ApiReponse, AppState, Post, errors::AppError, logger::AppLogger};
+use crate::{ApiReponse, Post, app::AppState, errors::AppError, logger::AppLogger};
 use axum::{Json, extract::State, http::StatusCode};
 use chrono::Local;
 use serde::Deserialize;
@@ -22,7 +22,7 @@ pub async fn create_post_handler(
 
     post_request.validate().map_err(|e| {
         AppLogger::error(&format!("❌ Validation error: {}", e));
-        AppError::BadRequest(format!("❌ Validation error: {}", e))
+        AppError::ValidationError(e)
     })?;
 
     let new_post = Post {
@@ -52,4 +52,29 @@ pub async fn create_post_handler(
             "An Error Occured while creating post".to_string(),
         ))
     }
+}
+
+pub async fn get_all_posts(
+    State(app_state): State<AppState>,
+) -> Result<Json<ApiReponse<Vec<Post>>>, AppError> {
+    let response = app_state
+        .post_state
+        .lock()
+        .await
+        .posts
+        .values()
+        .cloned()
+        .collect();
+
+    let res = ApiReponse {
+        data: response,
+        status_code: StatusCode::OK.as_u16(),
+        message: "Post retrieved successfully 🚀".to_string(),
+    };
+
+    Ok(Json(res))
+}
+
+pub async fn health_handler() -> Json<String> {
+    Json("App sarted running successfully! 🚀🔥".to_string())
 }

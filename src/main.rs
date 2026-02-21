@@ -1,34 +1,31 @@
 use axum::{
-    Json, Router,
-    body::Body,
-    extract::State,
-    http::{Response, StatusCode, response},
-    response::IntoResponse,
+    Router,
     routing::{get, post},
-    serve::Listener,
 };
 
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
-    str::FromStr,
-    sync::Arc,
+    net::{Ipv4Addr, SocketAddr},
 };
-use thiserror::Error;
-use tokio::{net::TcpListener, sync::Mutex};
+use tokio::net::TcpListener;
 
 use uuid::Uuid;
 
+mod app;
+mod config;
 mod errors;
 mod handlers;
 mod logger;
 
 use errors::AppError;
-use handlers::create_post_handler;
+use handlers::{create_post_handler, get_all_posts, health_handler};
 use logger::AppLogger;
+
+use app::AppState;
+
+use crate::config::get_env_vars;
 
 #[derive(Clone, Debug, Serialize)]
 struct Post {
@@ -63,8 +60,6 @@ struct _PaginationMeta {
     total_pages: Option<u16>,
 }
 
-#[derive(Debug, Serialize)]
-struct PostResponse {}
 #[derive(Debug)]
 struct BlogPosts {
     posts: HashMap<Uuid, Post>,
@@ -89,57 +84,8 @@ impl BlogPosts {
         }
     }
 }
-#[derive(Clone, Debug)]
-struct AppState {
-    post_state: Arc<Mutex<BlogPosts>>,
-}
-
-impl AppState {
-    fn new() -> Self {
-        Self {
-            post_state: Arc::new(Mutex::new(BlogPosts::new())),
-        }
-    }
-}
 
 // Handlers
-
-async fn get_all_posts(
-    State(app_state): State<AppState>,
-) -> Result<Json<ApiReponse<Vec<Post>>>, AppError> {
-    let response = app_state
-        .post_state
-        .lock()
-        .await
-        .posts
-        .values()
-        .cloned()
-        .collect();
-
-    let res = ApiReponse {
-        data: response,
-        status_code: StatusCode::OK.as_u16(),
-        message: "Post retrieved successfully 🚀".to_string(),
-    };
-
-    Ok(Json(res))
-}
-
-async fn health_handler() -> Json<String> {
-    Json("App sarted running successfully! 🚀🔥".to_string())
-}
-
-fn get_env_vars<T>(key: &str) -> Result<T, AppError>
-where
-    T: FromStr,
-{
-    let vars = std::env::var(key)
-        .map_err(|_| AppError::NotFound(format!("Environment variable {key} not Found")))?;
-
-    Ok(vars
-        .parse::<T>()
-        .map_err(|_| AppError::BadRequest("An error occured while parsing".to_string())))?
-}
 
 #[tokio::main]
 async fn main() {
