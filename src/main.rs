@@ -3,7 +3,7 @@ use axum::{
     routing::{get, post},
 };
 
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -95,8 +95,12 @@ async fn main() -> Result<(), AppError> {
     AppLogger::init();
 
     let database_url: String = get_env_vars("DATABASE_URL")?;
-    let _pool = connect_db(&database_url).await;
+    let _pool = connect_db(&database_url).await.map_err(|err| {
+        AppLogger::error(&format!("Database connection failed {:?}", err));
+        AppError::InternalServer(format!("Database connection failed {:?}", err))
+    })?;
 
+    AppLogger::info(&format!("Database Connected Successfully 🔥🚀"));
     let app_state = AppState::new();
     let default_port = 8080;
 
