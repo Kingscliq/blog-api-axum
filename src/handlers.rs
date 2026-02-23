@@ -1,6 +1,6 @@
-use crate::{ApiReponse, Post, app::AppState, errors::AppError, logger::AppLogger};
+use crate::{ApiResponse, Post, app::AppState, errors::AppError, logger::AppLogger};
 use axum::{Json, extract::State, http::StatusCode};
-use chrono::Local;
+use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;
@@ -17,9 +17,7 @@ pub struct CreatePostRequest {
 pub async fn create_post_handler(
     State(app_state): State<AppState>,
     Json(post_request): Json<CreatePostRequest>,
-) -> Result<Json<ApiReponse<Post>>, AppError> {
-    let mut post_guard = app_state.post_state.lock().await;
-
+) -> Result<Json<ApiResponse<Post>>, AppError> {
     post_request.validate().map_err(|e| {
         AppLogger::error(&format!("❌ Validation error: {}", e));
         AppError::ValidationError(e)
@@ -30,33 +28,33 @@ pub async fn create_post_handler(
         title: post_request.title,
         content: post_request.content,
         description: post_request.description,
-        created_at: Local::now(),
-        updated_at: Local::now(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
         image_url: post_request
             .image_url
             .unwrap_or_else(|| "https://placehold.net/400x400.png".to_string()),
     };
 
-    let res: ApiReponse<Post> = ApiReponse {
+    let res: ApiResponse<Post> = ApiResponse {
         data: new_post.clone(),
         status_code: StatusCode::CREATED.as_u16(),
         message: "Post created successfully 🚀".to_string(),
     };
 
-    if let Ok(_) = post_guard.create_post(new_post) {
-        AppLogger::info("Post created successfully 🚀");
-        Ok(Json(res))
-    } else {
-        AppLogger::error("An Error Occured while creating post");
-        Err(AppError::BadRequest(
-            "An Error Occured while creating post".to_string(),
-        ))
-    }
+    let mut post_guard = app_state.post_state.lock().await;
+
+    post_guard.create_post(new_post).map_err(|e| {
+        AppLogger::error(&format!("An Error Occured while creating post {e:?}"));
+        e
+    })?;
+
+    AppLogger::info("Post created successfully 🚀");
+    Ok(Json(res))
 }
 
 pub async fn get_all_posts(
     State(app_state): State<AppState>,
-) -> Result<Json<ApiReponse<Vec<Post>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<Post>>>, AppError> {
     let response = app_state
         .post_state
         .lock()
@@ -66,7 +64,7 @@ pub async fn get_all_posts(
         .cloned()
         .collect();
 
-    let res = ApiReponse {
+    let res = ApiResponse {
         data: response,
         status_code: StatusCode::OK.as_u16(),
         message: "Post retrieved successfully 🚀".to_string(),

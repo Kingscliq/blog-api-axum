@@ -6,8 +6,8 @@ use axum::{
     http::{Response, StatusCode},
     response::IntoResponse,
 };
+
 use serde::Serialize;
-use serde_json::json;
 
 #[derive(Debug, Clone)]
 pub enum AppError {

@@ -3,10 +3,10 @@ use axum::{
     routing::{get, post},
 };
 
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, hash_map::Entry},
     net::{Ipv4Addr, SocketAddr},
 };
 use tokio::net::TcpListener;
@@ -34,8 +34,8 @@ struct Post {
     image_url: String,
     content: String,
     description: String,
-    created_at: DateTime<Local>,
-    updated_at: DateTime<Local>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,7 +47,7 @@ struct UpdatePostRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct ApiReponse<T> {
+struct ApiResponse<T> {
     data: T,
     status_code: u16,
     message: String,
@@ -72,15 +72,15 @@ impl BlogPosts {
         }
     }
     fn create_post(&mut self, post: Post) -> Result<(), AppError> {
-        if self.posts.contains_key(&post.id) {
-            Err(AppError::BadRequest(format!(
+        match self.posts.entry(post.id) {
+            Entry::Vacant(item) => {
+                item.insert(post);
+                Ok(())
+            }
+            Entry::Occupied(_) => Err(AppError::BadRequest(format!(
                 "Post with ID: {} already Exists",
                 post.id
-            )))
-        } else {
-            self.posts.insert(Uuid::new_v4(), post);
-
-            Ok(())
+            ))),
         }
     }
 }
@@ -102,10 +102,10 @@ async fn main() {
         .with_state(app_state);
 
     let port = get_env_vars("PORT").unwrap_or(default_port);
-    let socker_address: SocketAddr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+    let socket_address: SocketAddr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
 
-    AppLogger::info(&format!("Listening at {}", socker_address));
-    let listener: TcpListener = TcpListener::bind(socker_address).await.unwrap();
+    AppLogger::info(&format!("Listening at {}", socket_address));
+    let listener: TcpListener = TcpListener::bind(socket_address).await.unwrap();
 
     AppLogger::info(&format!(
         "Server listening  at {}",
