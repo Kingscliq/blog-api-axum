@@ -3,7 +3,7 @@ use axum::{
     routing::{get, post},
 };
 
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 mod app;
 mod config;
+mod db;
 mod errors;
 mod handlers;
 mod logger;
@@ -25,8 +26,8 @@ use logger::AppLogger;
 
 use app::AppState;
 
-use crate::config::get_env_vars;
-
+use config::get_env_vars;
+use db::connect_db;
 #[derive(Clone, Debug, Serialize)]
 struct Post {
     id: Uuid,
@@ -88,11 +89,18 @@ impl BlogPosts {
 // Handlers
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), AppError> {
     dotenvy::dotenv().ok();
 
     AppLogger::init();
 
+    let database_url: String = get_env_vars("DATABASE_URL")?;
+    let _pool = connect_db(&database_url).await.map_err(|err| {
+        AppLogger::error(&format!("Database connection failed {:?}", err));
+        AppError::InternalServer(format!("Database connection failed {:?}", err))
+    })?;
+
+    AppLogger::info(&format!("Database Connected Successfully 🔥🚀"));
     let app_state = AppState::new();
     let default_port = 8080;
 
@@ -112,6 +120,8 @@ async fn main() {
         listener.local_addr().unwrap()
     ));
     axum::serve(listener, app).await.unwrap();
+
+    Ok(())
 }
 
 // // POST /posts - needs all post data

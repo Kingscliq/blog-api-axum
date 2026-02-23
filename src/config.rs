@@ -13,3 +13,5 @@ where
         .parse::<T>()
         .map_err(|_| AppError::BadRequest("An error occured while parsing".to_string())))?
 }
+
+
