@@ -5,10 +5,7 @@ use axum::{
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    net::{Ipv4Addr, SocketAddr},
-};
+use std::net::{Ipv4Addr, SocketAddr};
 use tokio::net::TcpListener;
 
 use uuid::Uuid;
@@ -19,6 +16,7 @@ mod db;
 mod errors;
 mod handlers;
 mod logger;
+mod services;
 
 use errors::AppError;
 use handlers::{create_post_handler, get_all_posts, health_handler};
@@ -39,14 +37,13 @@ struct Post {
     updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
-struct UpdatePostRequest {
-    title: Option<String>,
-    description: Option<String>,
-    image_url: Option<String>,
-    content: Option<String>,
-}
-
+// #[derive(Debug, Deserialize)]
+// struct UpdatePostRequest {
+//     title: Option<String>,
+//     description: Option<String>,
+//     image_url: Option<String>,
+//     content: Option<String>,
+// }
 #[derive(Debug, Deserialize, Serialize)]
 struct ApiResponse<T> {
     data: T,
@@ -61,33 +58,6 @@ struct _PaginationMeta {
     total_pages: Option<u16>,
 }
 
-#[derive(Debug)]
-struct BlogPosts {
-    posts: HashMap<Uuid, Post>,
-}
-
-impl BlogPosts {
-    fn new() -> Self {
-        Self {
-            posts: HashMap::new(),
-        }
-    }
-    fn create_post(&mut self, post: Post) -> Result<(), AppError> {
-        match self.posts.entry(post.id) {
-            Entry::Vacant(item) => {
-                item.insert(post);
-                Ok(())
-            }
-            Entry::Occupied(_) => Err(AppError::BadRequest(format!(
-                "Post with ID: {} already Exists",
-                post.id
-            ))),
-        }
-    }
-}
-
-// Handlers
-
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     dotenvy::dotenv().ok();
@@ -95,13 +65,17 @@ async fn main() -> Result<(), AppError> {
     AppLogger::init();
 
     let database_url: String = get_env_vars("DATABASE_URL")?;
-    let _pool = connect_db(&database_url).await.map_err(|err| {
-        AppLogger::error(&format!("Database connection failed {:?}", err));
-        AppError::InternalServer(format!("Database connection failed {:?}", err))
+    let pool = connect_db(&database_url).await.map_err(|err| {
+        let msg = match &err {
+            sqlx::Error::Database(db_err) => db_err.message().to_string(),
+            _ => err.to_string(),
+        };
+        AppLogger::error(&format!("Database connection failed {}", msg));
+        AppError::InternalServer(format!("Database connection failed"))
     })?;
 
     AppLogger::info(&format!("Database Connected Successfully 🔥🚀"));
-    let app_state = AppState::new();
+    let app_state = AppState::new(pool);
     let default_port = 8080;
 
     let app: Router = Router::new()
@@ -123,23 +97,3 @@ async fn main() -> Result<(), AppError> {
 
     Ok(())
 }
-
-// // POST /posts - needs all post data
-// struct CreatePostRequest {
-//     title: String,
-//     content: String,
-//     description: String,
-// }
-
-// // PUT /posts/{id} - needs ID + updated data
-// struct UpdatePostRequest {
-//     title: Option<String>,  // Optional fields for partial updates
-//     content: Option<String>,
-//     description: Option<String>,
-// }
-
-// // GET /posts/search - needs search parameters
-// struct SearchPostsRequest {
-//     query: String,
-//     limit: Option<u32>,
-// }

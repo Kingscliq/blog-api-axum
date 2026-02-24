@@ -14,7 +14,7 @@ pub enum AppError {
     BadRequest(String),
     NotFound(String),
     InternalServer(String),
-    UnAuthorized(String),
+    // UnAuthorized(String),
     ValidationError(validator::ValidationErrors),
 }
 
@@ -93,10 +93,10 @@ impl IntoResponse for AppError {
                 StatusCode::NOT_FOUND,
                 ResponseBody::Error(ErrorResponse::new(msg, StatusCode::NOT_FOUND.as_u16())),
             ),
-            AppError::UnAuthorized(msg) => (
-                StatusCode::UNAUTHORIZED,
-                ResponseBody::Error(ErrorResponse::new(msg, StatusCode::UNAUTHORIZED.as_u16())),
-            ),
+            // AppError::UnAuthorized(msg) => (
+            //     StatusCode::UNAUTHORIZED,
+            //     ResponseBody::Error(ErrorResponse::new(msg, StatusCode::UNAUTHORIZED.as_u16())),
+            // ),
             AppError::ValidationError(errors) => (
                 StatusCode::BAD_REQUEST,
                 ResponseBody::Validation(ValidationError::new(&errors)),
